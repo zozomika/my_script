@@ -1,0 +1,49 @@
+#!/bin/csh -f
+#if ($1 == "") then  
+# printf "Input invalid! Please run with DRC_RES.db:  $0 DRC_RES.db \n"
+#else
+#set file = $1
+#set error_type = $2
+awk ' BEGIN{\
+ code = 1\
+ line = 0\
+ n = 0\
+ m = 0\
+ z = 0\
+ #get error code and its end line description from DRC_RES.db\
+ #error_array[0] = "Error Code"\
+ while (getline < "'$file'" >0) {\
+  n++\
+  if ( $2 == "{") {\
+   error_array[code] = $1\
+   error_end_line[line] = n\
+   code++\
+   line++\
+  }\
+ }\
+ k = length (error_array)\
+ error_end_line[k] = n+3\
+ temp_k = int(k/2)\
+}\
+{\
+ m++\
+ #get start line description of each code\
+ if ( $3 == "@") {\
+  error_start_line[$1] = FNR- 2 \
+ }\
+ #print out the report\
+ if (m<error_end_line[temp_k]-2){\
+#  print > "report_"error_end_line[temp_k]-3".err"\
+ } else {\
+#  print > "report_"error_end_line[k]-3".err"\
+ }\
+}\
+ END{\
+ printf ("%-45s %-20s %-20s %-20s \n","ERROR NAME","FROM LINE","TO LINE","PRINT_OUT [yes/no]") > FILENAME".out"\
+ printf ("%-45s %-20s %-20s %-20s \n","__________","_________","_______","__________________") > FILENAME".out"\
+ print "" > FILENAME".out"\
+ for (j=1;j<=k;j++) {\
+   printf ("%-45s %-20s %-20s %-20s \n",error_array[j],error_start_line[error_array[j]],error_end_line[j]-3,"no") > FILENAME".out"\
+ }\
+} ' $1 #> report_DRC_lower_for_CHIP
+#endif

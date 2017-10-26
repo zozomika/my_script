@@ -1,0 +1,61 @@
+#!/bin/csh -f
+#  
+set file = $1
+set error_type = $2
+
+awk ' BEGIN{\
+ code = 1\
+ line = 0\
+ n = 0\
+ m = 0\
+ z = 0\
+ #error_array[0] = "Error Code"\
+ while (getline < "'$file'" >0) {\
+  n++\
+  if ( $2 == "{") {\
+#   print $1 \
+   error_array[code] = $1\
+   b[line] = n\
+   code++\
+   line++\
+  }\
+ }\
+ k = length (error_array)\
+ b[k] = n+3\
+ temp_k = int(k/2)\
+# print temp_k\
+}\
+{\
+ m++\
+# z = m\
+# print k\
+# for (j=1;j<=k;j++) {\
+##  print error_array[j]\
+#  if (j+1<k){\
+#   if ($1 == error_array[j]) {\
+#    while (getline >0) {\
+#     z++\
+     if (m<b[temp_k]-2){\
+      print > "report_"b[temp_k]".err"\
+#      print \
+#      #continue\
+     } else {\
+      print > "report_"b[k]".err"\
+     }\
+#    }\
+#   #continue\
+#   }\
+#  }\
+## continue\
+# }\
+}\
+ END{\
+ k = length (error_array)\
+ print k\
+ for (j=1;j<=k;j++) {\
+  #if (j+1 < k) {\
+   printf ("%-40s %-20s \n",error_array[j],b[j]-3)\
+#   print length(error_array) \
+  #}\
+ }\
+} ' $file #> report_DRC_lower_for_CHIP
