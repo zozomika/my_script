@@ -1,0 +1,227 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" >
+<HTML>
+	<HEAD>
+		<title>SilkPortal</title>
+		<meta content="Microsoft Visual Studio .NET 7.1" name="GENERATOR">
+		<meta content="C#" name="CODE_LANGUAGE">
+		<meta content="JavaScript" name="vs_defaultClientScript">
+		<meta http-equiv="refresh" content="1500">
+		<meta content="http://schemas.microsoft.com/intellisense/ie5" name="vs_targetSchema">
+		<LINK href="LMS_style.css" type="text/css" rel="stylesheet">
+		<script language="javascript" src="js/login.js"></script>
+		<script language="javascript">
+		function setFocus()
+		{
+			if (document.getElementById("tbUsername").value.length == 0)
+			{
+				document.getElementById("tbUsername").focus();
+				return;
+			}
+			
+			if (document.getElementById("tbPassword").value.length == 0)
+			{
+				document.getElementById("tbPassword").focus();
+				return;
+			}
+			document.getElementById("tbUsername").focus();
+			
+			
+		}
+		</script>
+	</HEAD>
+	<body onload="setFocus(); body_onload();">
+		<p>&nbsp;</p>
+		<p>&nbsp;</p>
+		<p>&nbsp;</p>
+		<form name="Form1" method="post" action="SignIn.aspx?ReturnUrl=%2fReport%2fByMonthly_List.aspx" onsubmit="javascript:return WebForm_OnSubmit();" id="Form1">
+<div>
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKLTcwNzY0NjMzMg9kFgICAQ9kFgYCCA8PFgIeDEVycm9yTWVzc2FnZQUfPGJyIC8+RW1haWwgYWRkcmVzcyBpcyBtaXNzaW5nLmRkAg0PDxYCHwAFGjxiciAvPlBhc3N3b3JkIGlzIG1pc3NpbmcuZGQCDw8PZBYCHgdvbmNsaWNrBQtzZXRGb2N1cygpO2QYAQUeX19Db250cm9sc1JlcXVpcmVQb3N0QmFja0tleV9fFgEFDWNoZWNrUmVtZW1iZXL8F70g8U3i9LOdGvAbzRadnfaMqg==" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['Form1'];
+if (!theForm) {
+    theForm = document.Form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<script src="/WebResource.axd?d=ffRZ_d6kVayg81G-P2UYKH-8S9wroGxsmYH1XWN9ciHjEdjGZ3Jklg1jErcghJpsjkwa4JiNW3P1M0cLoiMSkWhaMp81&amp;t=636271923297880478" type="text/javascript"></script>
+
+
+<script src="/WebResource.axd?d=kYPK0kEL7YB1Gxl44aDJc6uSCnmKk_Hw2mo-slAr5LAqHVLW1fUd9upj8LdmRcaHe3ChdebHGF0AiDjtqNtjv5NAmQQ1&amp;t=636271923297880478" type="text/javascript"></script>
+<script type="text/javascript">
+//<![CDATA[
+function WebForm_OnSubmit() {
+if (typeof(ValidatorOnSubmit) == "function" && ValidatorOnSubmit() == false) return false;
+return true;
+}
+//]]>
+</script>
+
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="ECDA716A" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEWBQLhgYCeCQLStq24BwK3jsrkBALHyfnnAgK9kaSyBuNTe2gPIwmw4YI1WnZiHP3lovO5" />
+</div>
+			<table cellSpacing="0" cellPadding="0" width="380" align="center" border="0">
+				<tr>
+					<td width="1" bgColor="#d4d0c8"></td>
+					<td width="1"></td>
+					<td bgColor="#d4d0c8"></td>
+					<td width="1" bgColor="#d4d0c8"></td>
+					<td width="1" bgColor="#404040"></td>
+				</tr>
+				<tr>
+					<td width="1" bgColor="#d4d0c8" height="1"></td>
+					<td width="1" height="1"></td>
+					<td height="1"></td>
+					<td width="1" height="1"></td>
+					<td width="1" bgColor="#404040" height="1"></td>
+				</tr>
+				<tr>
+					<td width="1" bgColor="#d4d0c8"></td>
+					<td width="1"></td>
+					<td bgColor="#d4d0c8">
+						<TABLE cellSpacing="0" cellPadding="1" width="100%" border="0">
+							<tr>
+								<td class="txtSmall">
+									<table cellSpacing="0" cellPadding="4" width="100%" border="0" background="images/w_bgtitle.gif">
+										<tr>
+											<td class="txtSmall" width="50%"><b><font color="#ffffff"> 
+                                                <span id="lblLoginTitle">Login</span></font></b></td>
+											<td class="txtSmall" width="50%" align="right"><b><font color="#ffffff">Version 1.1.0</font></b></td>
+										</tr>
+									</table>
+								</td>
+							</tr>
+							<tr>
+								<td class="bgWhite" height="50" background=""><img src="images/title_silkportal_login.gif" width="115" height="21"></td>
+							</tr>
+							<tr>
+								<td class="bgLight" style="HEIGHT: 186px">
+									<table class="normal" cellSpacing="0" cellPadding="5" width="100%" border="0">
+										<tr>
+											<td align="left" colspan="2">
+												<span id="lbErrorMessage" style="color:Red;"></span>&nbsp;</td>
+										</tr>
+										<tr>
+											<td align="right" valign="top">
+                                                <span id="lblUserNameTitle"><u>E</u>mail Address:</span>
+                                            </td>
+											<td valign="top"><input name="tbUsername" type="text" maxlength="50" size="30" id="tbUsername" accesskey="E" tabindex="1" title="[Alt+E]" /><span id="reqUsername" style="color:Red;display:none;"><br />Email address is missing.</span></td>
+										</tr>
+										<tr>
+											<td align="right" valign="top">
+                                                <span id="lblPasswordTitle"><u>P</u>assword:</span>
+                                            </td>
+											<td valign="top"><input name="tbPassword" type="password" maxlength="50" size="30" id="tbPassword" accesskey="P" tabindex="2" title="[Alt+P]" /><span id="reqPassword" style="color:Red;display:none;"><br />Password is missing.</span></td>
+										</tr>
+										<tr>
+											<td style="height: 26px"></td>
+											<td class="txtSmall" style="height: 26px">
+												<table border="0" cellpadding="0" cellspacing="0" width="192px">
+													<tr>
+														<td align="left" style="height: 20px">
+															<input type="submit" name="btLogin" value="Login" onclick="setFocus();WebForm_DoPostBackWithOptions(new WebForm_PostBackOptions(&quot;btLogin&quot;, &quot;&quot;, true, &quot;&quot;, &quot;&quot;, false, false))" id="btLogin" accesskey="L" tabindex="3" title="[Alt+L]" class="button" />
+														</td>
+													</tr>
+												</table>
+											</td>
+										</tr>
+										<tr>
+											<td></td>
+											<td class="txtColor">
+                                                <a id="lnkForgottenPassword" tabindex="4" href="ForgotPassword.aspx">Forgotten password?</a>
+                                            </td>
+										</tr>
+										<tr>
+											<td align="right">
+												<span title="[Alt+R]"><input id="checkRemember" type="checkbox" name="checkRemember" accesskey="R" tabindex="5" /></span></td>
+											<td class="txtColor">
+												<span id="lblRememberUserNamePassword"><u>R</u>emember Email Address and Password </span></td>
+										</tr>
+									</table>
+								</td>
+							</tr>
+							<tr>
+								<td class="bgLight">&nbsp;</td>
+							</tr>
+						</TABLE>
+					</td>
+					<td width="1" bgColor="#808080"></td>
+					<td width="1" bgColor="#404040"></td>
+				</tr>
+				<tr bgColor="#808080">
+					<td></td>
+					<td></td>
+					<td></td>
+					<td></td>
+					<td bgColor="#404040"></td>
+				</tr>
+				<tr bgColor="#404040">
+					<td></td>
+					<td></td>
+					<td></td>
+					<td></td>
+					<td></td>
+				</tr>
+			</table>
+		
+<script type="text/javascript">
+//<![CDATA[
+var Page_Validators =  new Array(document.getElementById("reqUsername"), document.getElementById("reqPassword"));
+//]]>
+</script>
+
+<script type="text/javascript">
+//<![CDATA[
+var reqUsername = document.all ? document.all["reqUsername"] : document.getElementById("reqUsername");
+reqUsername.controltovalidate = "tbUsername";
+reqUsername.errormessage = "<br />Email address is missing.";
+reqUsername.display = "Dynamic";
+reqUsername.evaluationfunction = "RequiredFieldValidatorEvaluateIsValid";
+reqUsername.initialvalue = "";
+var reqPassword = document.all ? document.all["reqPassword"] : document.getElementById("reqPassword");
+reqPassword.controltovalidate = "tbPassword";
+reqPassword.errormessage = "<br />Password is missing.";
+reqPassword.display = "Dynamic";
+reqPassword.evaluationfunction = "RequiredFieldValidatorEvaluateIsValid";
+reqPassword.initialvalue = "";
+//]]>
+</script>
+
+
+<script type="text/javascript">
+//<![CDATA[
+
+var Page_ValidationActive = false;
+if (typeof(ValidatorOnLoad) == "function") {
+    ValidatorOnLoad();
+}
+
+function ValidatorOnSubmit() {
+    if (Page_ValidationActive) {
+        return ValidatorCommonOnSubmit();
+    }
+    else {
+        return true;
+    }
+}
+        //]]>
+</script>
+</form>
+	</body>
+</HTML>

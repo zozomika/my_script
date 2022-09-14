@@ -1,0 +1,1177 @@
+#!/bin/csh -f
+
+# This script will support to get member's location
+# Output website: file://///rvc-nas-03/work/vinhthai/Online_Destination_Board/odb.html
+# Rule:
+#   1.  Seat number must be number only.
+#   2.  One member will only have 1 file in output folder. And this is the latest.
+#   3.  Members can change locate by execute script again.
+#   4.  The script will install crontab to remove file inside output folder at 3:00AM
+#
+# Changelog:
+# v0    Nov07,2017    TuanLa      New Creation
+# v1    Nov12,2017    TuanLa      Add more option reflect to Online_Destination_Board v002
+#                                 (add clear, update, release, reserve option..., checking points...)
+# v2    Nov14,2017    TuanLa      Add book/unbook for manager roles
+# v3    Nov19,2017    TuanLa      Add fwi registeration
+# v4    Nov26,2017    TuanLa      Add Last Person 1,2 flag, take OFF function
+# v5    Nov27,2017    TuanLa      Deny when calling this script in other script, deny set by crontab
+# v6    Dec05,2017    TuanLa      Add validation for WON using other script
+# v7    Dec26,2017    TuanLa      Modify OFF function to support OFF AM/PM/DAY/WAH
+# v8    Jan02,2018    TuanLa      Preparing for detecting robotic actions
+# v10   Jan06,2018    TuanLa      Updating prevention for robotic action when won/wof.
+#                                 Increase performance when checking process
+#
+
+cat  << FILE
+
+Checking address: file://///rvc-nas-03/work/vinhthai/Online_Destination_Board/odb.html
+
+Usage to OnlineDestinationBoard:
+  won     <seat>                : to register or change to new seat
+  wof                           : to release your current seat
+  
+  book    <seat> <username>     : to book the seat for others (Only availble for specific members)
+  unbook  <username>            : to un-book seat for others  (Only availble for specific members)
+  
+  fwi     <time> <username>     : to take flexible in. Username is optional only for specific members
+  fwi     <time>                : to take flexible in for yourself in the next day
+
+  off     <YY-MM-DD>            : to register OFF for yourself in specific date
+  off     <YY-MM-DD> <username> : to register OFF for other in specific date (Only available for specific members)
+  
+  pos                           : to define your current location (default: Desk)
+
+FILE
+
+
+######## PARAMETER ########
+set current_dir = `readlink -f $0`
+set current_dir = "$current_dir:h"
+set this_dir = "$PWD"
+#set usr_log = "${current_dir}/usr_setup_log"
+set cron_file = "`whoami`_`date '+%y_%m_%d_%H_%M_%S'`"
+set current_time = `date '+%H%M%S'`
+set timestamp    = `date '+%Y%m%d/%H%M%S'`
+  
+set admin             = "tuanla"
+set usr_name          = "`whoami`"
+set fwi_time_list     = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/fwi_time"
+set rvc_position      = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/rvc_position"
+
+
+set log               = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/log"
+set usr_log           = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/usr_setup_log"
+set selected_list     = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/manager_role_list"
+set user_habit        = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/.habit/collect/habit_${usr_name}"
+set user_habit_db     = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/.habit/habit_${usr_name}"
+set habit_db          = "/shsv/CIS/User/tuanla/01_common_script/seat_locate/.habit"
+
+set database          = "/common/work/vinhthai/Online_Destination_Board/3F/Attendance.txt"
+set touch_dir         = "/common/work/vinhthai/Online_Destination_Board/3F/collect/seat"
+set exchange_dir      = "/common/work/vinhthai/Online_Destination_Board/3F/collect/exchange_seat"
+set released_seat     = "/common/work/vinhthai/Online_Destination_Board/3F/collect/seat/.released_seat"
+set running_flag      = "/common/work/vinhthai/Online_Destination_Board/3F/collect/.running_flag"
+set fwi_list_present  = "/common/work/vinhthai/Online_Destination_Board/3F/collect/absence/fwt/fwi_list_current"
+set fwi_list_future   = "/common/work/vinhthai/Online_Destination_Board/3F/collect/absence/fwt/fwi_list_tomorrow"
+set off_list          = "/common/work/vinhthai/Online_Destination_Board/3F/collect/absence/off/off_list"
+set off_present       = "/common/work/vinhthai/Online_Destination_Board/3F/collect/absence/off/off_current"
+set avail_position    = "/common/work/vinhthai/Online_Destination_Board/3F/available_position"
+
+alias rand        "/shsv/CIS/User/tuanla/01_common_script/seat_locate/rand"             # Random generator
+alias valid       "/shsv/CIS/User/tuanla/01_common_script/seat_locate/validator"        # Validator
+alias captcha     "/shsv/CIS/User/tuanla/01_common_script/seat_locate/captcha"          # Captcha generator
+alias robot_check "/shsv/CIS/User/tuanla/01_common_script/seat_locate/robot_check"      # Robot check
+
+# Determine admin permission, manager permission
+set admin_right       = 0
+set off_right         = 0
+set fwi_right         = 0
+set reserved_right    = 0
+set crontab_right     = 0
+
+if (`echo "$usr_name" | sed 's/^'$admin'$// ; /^$/d' | wc -l` == 0) then
+  set admin_right     = 1
+  set off_right       = 1
+  set fwi_right       = 1
+  set reserved_right  = 1
+  set crontab_right   = 1
+else
+  if (-e $selected_list) then
+    if (`egrep -v '^#' $selected_list | egrep -v '^\s*$' | grep -w "$usr_name" | wc -l` == 1) then
+      set off_right = 1
+      set fwi_right = 1
+      set reserved_right = 1
+      set crontab_right  = 1
+    endif
+  endif
+endif
+
+#echo "System is under maintainence..."
+#if ($admin_right == 0) then
+#  exit
+#endif
+
+# Authentical detection
+set curr_scr  = "`readlink -e $0`"
+set curr_md5  = `md5sum $curr_scr | awk '{print $1}'`
+set auth_scr  = "/shsv/CIS/User/tuanla/01_common_script/tester_improvement/.d64fb8c90f70627f299deeb2214d1b18"
+set auth_md5  = `md5sum "$auth_scr" | awk '{print $1}'`
+if ( ("$curr_scr" != "$auth_scr") || ("$curr_md5" != "$auth_md5") ) then
+  echo "You're not running the authentical script!"
+  echo "$usr_name - unauth - `date`" >> ${log}
+  exit
+else
+  if ($crontab_right == 0) then
+    crontab -l >&! $usr_log/$usr_name
+    echo "$PWD" >> $usr_log/$usr_name
+    chmod 777 $usr_log/$usr_name
+
+    ## Press enter to continue
+    #printf "Press Enter to continue... "
+    #set chk = `bash -c "input="NULL"; read -t5 input ; echo "'$input'""`
+    #if ($chk != "NULL") then
+    #  echo "System is executing... Please wait a moment..."
+    #else
+    #  echo "Failed! Please execute again!"
+    #  echo "$usr_name - Enter is not pressed - `date`" >> ${log}
+    #  exit
+    #endif
+
+    # Check if this script is called from another script
+    set out_loop    = 0
+    set level_tree  = 0
+    set find_PID    = "$$" # Current PID
+    
+    rm -rf ${usr_log}/${usr_name}_ps
+    touch     ${usr_log}/${usr_name}_ps
+    chmod 777 ${usr_log}/${usr_name}_ps
+    ps U $usr_name f -f >> ${usr_log}/${usr_name}_ps
+
+    while ($out_loop == 0)
+      #if (`ps U $usr_name f -f | awk '{if ($2 == '$find_PID') print $0;}' | awk '{if ($6 != "?") print $0;}' | wc -l` == 0) then
+      #  if ((`ps U $usr_name f -f | awk '{if ($2 == '$find_PID') print $0;}' | awk '{if ($6 != "?") print $0;}' | wc -l` == 0) && ("$level_tree" == 0)) then
+      #    echo "This program is called from nowhere! Please check!"
+      #    echo "$usr_name - nowhere - `date`" >> $log
+      #    exit
+      #  endif
+      #  set out_loop    = 1
+      #else
+      #  @ level_tree++
+      #  set PPID = `ps U $usr_name f -f | awk '{if ($2 == '$find_PID') print $3;}'`
+      #  set find_PID    = "$PPID"
+      #endif
+      if (`cat ${usr_log}/${usr_name}_ps | awk '{if ($2 == '$find_PID') print $0;}' | awk '{if ( ($7 == "SN+") || ($7 == "S+") ) print $0;}' | wc -l` == 0) then
+        cat ${usr_log}/${usr_name}_ps | awk '{if ($2 == '$find_PID') print $0;}' >> ${usr_log}/${usr_name}_ps_temp
+        #if ((`ps U $usr_name f -f | awk '{if ($2 == '$find_PID') print $0;}' | awk '{if ($6 == "?") print $0;}' | wc -l` != 0) && ("$level_tree" == 0)) then
+        #  echo "This program is called from nowhere! Please execute this program properly (on terminal)!"
+        #  echo "$usr_name - nowhere - `date`" >> ${log}
+        #  exit
+        #endif
+        set out_loop    = 1
+      else
+        cat ${usr_log}/${usr_name}_ps | awk '{if ($2 == '$find_PID') print $0;}' >> ${usr_log}/${usr_name}_ps_temp
+        @ level_tree++
+        set PPID = `cat ${usr_log}/${usr_name}_ps | awk '{if ($2 == '$find_PID') print $3;}'`
+        set find_PID    = "$PPID"
+      endif
+    end
+    #echo "$level_tree" #>> $log
+    #echo "$level_tree"
+    if ("$level_tree" != 2) then
+      echo "You cannot call this script from other script! Thanks :)"
+      echo "$usr_name - call_${level_tree} - `date`" >> ${log}
+      tac ${usr_log}/${usr_name}_ps_temp >> ${log}
+      rm -rf ${usr_log}/${usr_name}_ps_temp
+      exit
+    else
+      rm -rf ${usr_log}/${usr_name}_ps_temp
+    endif
+
+    #if (${usr_name} == "phongvi") then
+    #  echo "====================`date`==================" >>! ${usr_log}/${usr_name}_ps
+    #  echo "=====================END==================" >>! ${usr_log}/${usr_name}_ps
+    #endif
+    
+    #Crontab check
+    #crontab -l >&! $usr_log/$usr_name
+    #cat $usr_log/$usr_name | awk '{print $6}' | sort -u | xargs -ixxx readlink -e xxx >! $usr_log/${usr_name}_rootlink
+    #chmod 777 $usr_log/${usr_name}*
+    #set cheat_found1 = `cat $usr_log/${usr_name}_rootlink | grep "/shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh" | wc -l`
+    #set cheat_found2 = `cat $usr_log/${usr_name}_rootlink | grep "$auth_scr" | wc -l`
+    ##echo "$cheat_found1 $cheat_found2"
+    #if (("$cheat_found1" != 0) || ("$cheat_found2" != 0)) then
+    #  echo "$usr_name - crontab - `date`" >> /shsv/CIS/User/tuanla/01_common_script/seat_locate/usr_setup_log/cheat_found
+    #  echo "Cheat time is over! I know what you're thinking haha!"
+    #  echo "Please remove this running script from your crontab! NOW!"
+    #  exit
+    #endif
+  endif
+endif
+echo "$usr_name - SUCCESS - `date` - $0 $*" >> ${log}
+if (! -e $user_habit) then
+  touch $user_habit
+  printf "WON\tWOF\n" >> $user_habit
+endif
+chmod 777 $user_habit
+
+# Common variables
+set seat_from = 1   # Seat range from
+set seat_to   = 232 # Seat range to
+set req_length = 3  # Length of seat: 001 instead of 1
+set threshold_time = "100000" # Max time for reserved seat 10AM = 100000
+
+######## MAIN SCRIPT ########
+#cd $current_dir
+cd /shsv/CIS/User/tuanla/01_common_script/seat_locate
+
+### WON Exception with khoatran and nitta
+if ($#argv == 0) then
+  if (("$usr_name" == "khoatran")||("$usr_name" == "nitta")) then
+    set seat = "XXX"
+    if (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l` != 0) then  # Remove old seat or reserved seat
+      rm -rf ${touch_dir}/${usr_name}_*
+      if (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l` != 0) then # Check old seat is removed
+        echo "ERROR! Please contact > $admin < to remove ${usr_name}_* then execute again!"
+        echo "`date +%d%b%Y_%H%M%S` ${usr_name} : ERROR_000! Please remove ${touch_dir}/${usr_name}_*" >> $log
+        exit
+      endif
+    endif
+    touch ${touch_dir}/${usr_name}_${seat}_WON_Desk  # Register new seat ASAP
+    chmod 777 ${touch_dir}/${usr_name}_${seat}_WON_Desk
+    if (`grep "_${usr_name}_" $released_seat | wc -l` != 0) then
+      sed -i '/^XXX_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+      #sed -i '/^[0-9]*_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+      chmod 777 $released_seat
+    endif
+    printf "$timestamp\t\n" >> $user_habit
+    #chmod 777 $user_habit
+    echo "You've successfully registered your seat ${usr_name}-san !"
+    echo "Have a nice day!"
+    if (! -e $running_flag) then
+      touch $running_flag
+      chmod 777 $running_flag
+    endif
+    exit
+  endif
+endif
+
+### FWI
+if ("$1" == "fwi") then
+  if ($#argv == 2) then       # Self - Flexible
+    set fwi_time      = "$2"
+    set fwi_usr       = "$usr_name"
+    set fwi_for_other = 0
+    goto REGISTER_FWI
+  else if ($#argv == 3) then 
+    if ($fwi_right == 1) then  # Managers set fwi for members
+      set timeup = `echo "(${current_time} - ${threshold_time}) >= 0" | bc`
+      if ("$timeup" == 1) then
+        echo "Sorry! It's `date '+%H:%M:%S'` You cannot set FWI for today!"
+        exit
+      endif
+      set fwi_time  = "$2"
+      set fwi_usr   = "$3"
+      set fwi_usr   = `echo "$fwi_usr" | awk '{print tolower($0)}'`  # Convert all to lower case
+      set usr_not_found = `id "$fwi_usr" |& egrep '^id:[^:]*: No such user$' | wc -l`
+      if ($usr_not_found == 1) then
+        echo "User account > ${fwi_usr} < is not found! Please try again!"
+        exit
+      endif
+      
+      # Check if currently user has a seat or not
+      set usr_has_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'${fwi_usr}'_' | grep "WON" | wc -l`
+      if ("$usr_has_seat" == 0) then
+        set fwi_for_other = 1
+        goto REGISTER_FWI
+      else
+        echo "Sorry! $fwi_usr has already taken a seat!"
+        exit
+      endif
+    else
+      echo "Sorry! You dont have permission to set FWI for others!"
+      exit
+    endif
+  else
+    echo "Syntax Error!"
+    exit
+  endif
+
+  REGISTER_FWI:
+  #echo "Register FWI for $fwi_usr at $fwi_time"
+  if (`egrep '^'${fwi_time}'$' $fwi_time_list | wc -l` == 1) then
+    if (! -e $fwi_list_future) then
+      touch $fwi_list_future
+      chmod 777 $fwi_list_future
+    endif
+    if ("$fwi_for_other" == 0) then
+      if (`egrep "_${fwi_usr}_" $fwi_list_future | wc -l` != 0) then  # Remove current registeration
+        sed -i '/^XXX_'${fwi_usr}'_/d' $fwi_list_future
+        chmod 777 $fwi_list_future
+      endif
+      echo "XXX_${fwi_usr}_FWI_${fwi_time}" >> $fwi_list_future
+      echo "You have successfully registered FWI at ${fwi_time} for the NEXT day!"
+    else
+      if (`egrep "_${fwi_usr}_" $fwi_list_present | wc -l` != 0) then  # Remove current registeration
+        sed -i '/^XXX_'${fwi_usr}'_/d' $fwi_list_present
+        chmod 777 $fwi_list_present
+      endif
+      echo "XXX_${fwi_usr}_FWI_${fwi_time}" >> $fwi_list_present
+      echo "You have successfully registered FWI for ${fwi_usr} at ${fwi_time} for TODAY!"
+    endif
+    if (! -e $running_flag) then
+      touch $running_flag
+      chmod 777 $running_flag
+    endif
+    exit
+  else
+    echo "Error! Set wrong FWI time!"
+    echo "  Please use FWI time below: "
+    cat $fwi_time_list
+    exit
+  endif
+endif
+
+### OFF
+if ("$1" == "off") then
+#if (1 == 0) then
+  if ($#argv == 2) then       # Self Register
+    set off_time      = "$2"
+    set off_usr       = "$usr_name"
+    set off_for_other = 0
+    goto REGISTER_OFF
+  else if ($#argv == 3) then 
+    if ($off_right == 1) then  # Managers set off for members
+      set off_time  = "$2"
+      set off_usr   = "$3"
+      set off_usr   = `echo "$off_usr" | awk '{print tolower($0)}'`  # Convert all to lower case
+      set usr_not_found = `id "$off_usr" |& egrep '^id:[^:]*: No such user$' | wc -l`
+      if ($usr_not_found == 1) then
+        echo "User account > ${off_usr} < is not found! Please try again!"
+        exit
+      endif
+      set off_for_other = 1
+      goto REGISTER_OFF
+    else
+      echo "Sorry! You dont have permission to register OFF for others!"
+      exit
+    endif
+  else
+    echo "To register OFF, please try again as with argument: YYYY-MM-DD"
+    exit
+  endif
+
+  
+  REGISTER_OFF:
+
+  # Format check
+  set date_correct = `date -d ''$off_time'' |& grep "date: invalid date" | wc -l`
+  if ("$date_correct" != 0) then
+    echo "Input date is incorrect! Please try again as format: YYYY-MM-DD"
+    exit
+  endif
+  
+  if (! -e $off_present) then
+    touch $off_present
+    chmod 777 $off_present
+  endif
+  if (! -e $off_list) then
+    touch $off_list
+    chmod 777 $off_list
+  endif
+  
+  # AM PM DAY OFF choose
+  printf "Choose OFF type: (1)AM / (2)PM / (3)DAY / (4)WAH : "
+  set choose = "$<"
+  set choose = `echo "$choose" | sed 's/ //g ; s/^0*//'`
+  if (`echo "$choose" | egrep '^[0-9]*$' | wc -l` != 1) then
+    echo "Your $choose not correct. Please choose again!"
+    exit
+  else if ( (`echo "$choose >= 1" | bc`) && (`echo "$choose <= 4" | bc`) ) then
+    if ("$choose" == 1) then
+      set off_inf = "AM"
+    else if ("$choose" == 2) then
+      set off_inf = "PM"
+    else if ("$choose" == 3) then
+      set off_inf = "DAY"
+    else if ("$choose" == 4) then
+      set off_inf = "WAH"
+    endif
+  else
+    echo "Please input correct number from 1 to 4!"
+    exit
+  endif
+  
+  # Register OFF for other in current day
+  if ($off_for_other == 1) then 
+    set today_pattern = `date '+%b%d,%Y'`
+    set regis_pattern = `date -d ''$off_time'' '+%b%d,%Y'`
+    if ("$today_pattern" == "$regis_pattern") then
+      rm -rf ${touch_dir}/${off_usr}_*                 >& /dev/null # Clear seat
+      sed -i '/^XXX_'${off_usr}'_/d' $released_seat    >& /dev/null # Clear release seat
+      sed -i '/^XXX_'${off_usr}'_/d' $fwi_list_present >& /dev/null # Clear FWI info
+      sed -i '/^.*_'${off_usr}'_/d'  $off_present      >& /dev/null # Clear current off
+      chmod 777 $released_seat
+      chmod 777 $fwi_list_present
+      chmod 777 $off_present
+      echo "XXX_${off_usr}_${off_inf}OFF" >> $off_present
+      if (! -e $running_flag) then
+        touch $running_flag
+        chmod 777 $running_flag
+      endif
+      echo "You have successfully register ${off_inf}OFF for $off_usr TODAY!"
+      exit
+    endif
+  endif
+
+  # Past check
+  set cur_sec = `date '+%s'`
+  set off_sec = `date -d ''$off_time'' '+%s'`
+  set old_time = `echo "(${off_sec} - ${cur_sec}) < 0" | bc`
+  if ("$old_time" == 1) then
+    if (`date '+%b%d,%Y'` == `date -d ''$off_time'' '+%b%d,%Y'`) then
+      echo "Sorry! Day off need to be set in advance, please inform your manager to set off for today!"
+    else
+      echo "Sorry! You cannot set off for the past `date -d ''$off_time'' '+%b %d, %Y'`!"
+    endif
+    exit
+  endif
+  
+  set off_time = `date -d ''$off_time'' '+%b%d,%Y'`
+  sed -i '/^XXX_'${off_usr}'_.*OFF_'${off_time}'$/d' $off_list >& /dev/null # Clear old off
+  chmod 777 $off_list
+  echo "XXX_${off_usr}_${off_inf}OFF_${off_time}" >> $off_list
+
+  echo "You have successfully register ${off_inf}OFF for $off_usr at $off_time"
+  echo "If you won't OFF on that day, please come and use WON as normal on that day! Thank you!"
+
+  if (! -e $running_flag) then
+    touch $running_flag
+    chmod 777 $running_flag
+  endif
+  exit
+endif
+
+### POS
+if ("$1" == "pos") then
+  if ($#argv == 1) then 
+    set usr_has_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'${usr_name}'_' | grep -v "_RES"| wc -l`
+    if ("$usr_has_seat" == 1) then
+      echo "Please choose one of below option: "
+
+      # Choose location
+      set total_line = `grep -c '.*' $avail_position`
+      set i = 1
+      printf "\t[0]\tDesk\n"
+      while ($i <= $total_line)
+        set pos = "`sed ''$i'q;d' $avail_position`"
+        printf "\t[${i}]\t$pos\n"
+        @ i++
+      end
+
+      printf "Choose location: "
+      set choose = "$<"
+      if (`echo "$choose" | egrep '^[0-9]*$' | wc -l` != 1) then
+        echo "Your $choose not correct. Please choose again!"
+        exit
+      else if ( (`echo "($total_line - $choose) >= 0" | bc`) && (`echo "($total_line - $choose) <= $total_line" | bc`) ) then
+        if ("$choose" == 0) then
+          set pos = "Desk" # Desk is exceptional case
+        else
+          set pos = ""
+          set line = "`sed '${choose}q;d' $avail_position | tr -d ' ' | cut -d ':' -f2`"
+        endif
+      else
+        echo "Please input correct location! (from 1 to $total_line)"
+        exit
+      endif
+      
+      if ("$pos" == "") then
+        # Choose room:
+        set total_line = `echo "$line" | sed 's/;/\n/g' | egrep -v '^$' | wc -l`
+        set i = 1
+        while ($i <= $total_line)
+          #set pos = "`echo "\""$line"\"" | sed 's/;/\n/g' | egrep -v '^$' | sed ''$i'q;d'`"
+          set pos = "`echo "\""$line"\"" | sed 's/;/\n/g' | egrep -v '^"'$'"' | sed '${i}q;d'`"
+          printf "\t[${i}]\t$pos\n"
+          @ i++
+        end
+        
+        printf "Choose meeting room: "
+        set choose = "$<"
+        if (`echo "$choose" | egrep '^[0-9]*$' | wc -l` != 1) then
+          echo "Your $choose not correct. Please choose again!"
+          exit
+        else if ( (`echo "($total_line - $choose) >= 0" | bc`) && (`echo "($total_line - $choose) < $total_line" | bc`) ) then
+          set pos = "`echo "\""$line"\"" | sed 's/;/\n/g' | egrep -v '^"'$'"' | sed '${choose}q;d'`"
+        else
+          echo "Please input correct location! (from 1 to $total_line)"
+          exit
+        endif
+      endif
+      
+      # Update position
+      set current_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | sed 's/^[^_]*_\([0-9]*\).*$/\1/'`
+      if (-e ${touch_dir}/${usr_name}_${current_seat}_WON_${pos}) then
+        echo "You're already at ${pos}"
+      else
+        mv -f ${touch_dir}/${usr_name}_* ${touch_dir}/${usr_name}_${current_seat}_WON_${pos}
+        echo "Your location is updated to $pos"
+        if (! -e $running_flag) then
+          touch $running_flag
+          chmod 777 $running_flag
+        endif
+      endif
+      exit
+    else
+      echo "Sorry! Please use WON first! :)"
+      exit
+    endif
+  else
+    echo "Syntax Error!"
+    exit
+  endif
+endif
+
+
+### Seat related
+if ($#argv == 1) then   # Input should be number and just 1 argument. Otherwise, error
+  ##################################################
+  if ("$1" == "clear") then # CLEAR ALL SEAT
+    if ($admin_right == 1) then
+      touch $log
+      chmod 722 $log
+      
+      ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | awk -F"[_]" '{ if ($3 == "") $3 = "WON" ; print $2"_"$1"_"$3}' | sort -nk1 >! ${database}_Remaining_`date '+%d_%b_%Y'`
+
+      rm -rf $database
+      rm -rf $touch_dir
+      rm -rf $exchange_dir
+      rm -rf $released_seat
+      
+      touch $database
+      mkdir -p $touch_dir
+      mkdir -p $exchange_dir
+      touch $released_seat
+
+      chmod 755 $database
+      chmod -R 777 $touch_dir
+      chmod -R 777 $exchange_dir
+      chmod 777 $released_seat
+      
+      rm -rf $running_flag
+      touch $running_flag
+      chmod 777 $running_flag
+
+      # FWI
+      if (`date '+%u'` <= 5) then # Refresh from Monday to Friday only. Not work in Sat and Sun
+      #if ((`date '+%u'` <= 5) && (`date '+%u'` > 1)) then # Refresh from Monday to Friday only. Not work in Sat and Sun
+        rm -rf  $fwi_list_present
+        if (-e $fwi_list_future) then
+          cp -rf $fwi_list_future $fwi_list_present
+          rm -rf $fwi_list_future
+        else
+          touch $fwi_list_present
+        endif
+        touch $fwi_list_future
+        
+        chmod 777 $fwi_list_future
+        chmod 777 $fwi_list_present
+      endif
+
+      # OFF
+      set today_pattern = `date '+%b%d,%Y'`
+      rm -rf $off_present
+      touch $off_present
+      if (-e $off_list) then
+        #sed 's/\(^.*\)_'$today_pattern'$/\1/g' $off_list | egrep '_OFF$' >> $off_present    # Update Off current
+        sed 's/\(^.*\)_'$today_pattern'$/\1/g' $off_list | egrep 'OFF$' >> $off_present     # Update Off current
+        sed -i '/^.*_'$today_pattern'$/d' $off_list                                         # Remove Off list
+      else
+        touch $off_list
+      endif
+      chmod 777 $off_present
+      chmod 777 $off_list
+      
+      # Clear up old habit collect
+      rm -rf $habit_db/collect/habit_*
+
+      echo "System has been cleared successfully!"
+    else
+      echo "You do not have permission to do this. Please contact $admin !"
+    endif
+
+  ##################################################
+  else if ("$1" == "update") then  # UPDATE LOCATION DATABASE
+    if ($admin_right == 1) then
+      if (! -f $database) then
+        touch $database
+        chmod 755 $database
+      endif
+      if (! -d $touch_dir) then
+        mkdir -p  $touch_dir
+        chmod -R 777 $touch_dir
+      endif
+      if (! -d $exchange_dir) then
+        mkdir -p  $exchange_dir
+        chmod -R 777 $exchange_dir
+      endif
+      if (! -f $released_seat) then
+        touch $released_seat
+        chmod 777 $released_seat
+      endif
+      if (! -e $fwi_list_future) then
+        touch $fwi_list_future
+        chmod 777 $fwi_list_future
+      endif
+      if (! -e $fwi_list_present) then
+        touch $fwi_list_present
+        chmod 777 $fwi_list_present
+      endif
+      if (! -e $off_list) then
+        touch $off_list
+        chmod 777 $off_list
+      endif
+      if (! -e $off_present) then
+        touch $off_present
+        chmod 777 $off_present
+      endif
+
+      # Remove reserved location and FWI if over 10AM
+      set timeup = `echo "(${current_time} - ${threshold_time}) >= 0" | bc`
+      if ($timeup == 1) then
+        if (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^.*_RES$' | wc -l` != 0) then
+          rm -rf ${touch_dir}/*_RES
+        endif
+        if (`cat $fwi_list_present | wc -l` != 0) then
+          rm -rf  $fwi_list_present # Clear current fwi registeration
+        endif
+      endif
+      
+      # Update available position
+      cat $rvc_position | egrep -v '^\s*#' | egrep -v '^\s*$' | tr -d "_" >! ${avail_position}_temp
+      if (-e ${avail_position}) then
+        if (`diff -q ${avail_position}_temp ${avail_position} | wc -l` != 0) then   # Update if differ
+          cp -rf ${avail_position}_temp ${avail_position}
+          chmod 744 ${avail_position}
+          echo "Available meeting room is updated!"
+        endif
+      else
+        cp -rf ${avail_position}_temp ${avail_position}
+        echo "Available meeting room is updated!"
+      endif
+      rm -rf ${avail_position}_temp
+
+      # Remove duplicated off_list
+      cat $off_list | sort -u >! ${off_list}_temp
+      if (`diff -q ${off_list}_temp ${off_list} | wc -l` != 0) then
+        mv -f ${off_list}_temp $off_list
+      else
+        echo "Off_list is clean!"
+      endif
+      chmod 777 $off_list >&! /dev/null
+      rm -rf ${off_list}_temp
+      
+      # Remove duplicated off_present
+      cat $off_present | sort -u >! ${off_present}_temp
+      if (`diff -q ${off_present}_temp ${off_present} | wc -l` != 0) then
+        rm -rf $off_present
+        cp -rf ${off_present}_temp $off_present
+      else
+        echo "Off_present is clean!"
+      endif
+      chmod 777 $off_present >&! /dev/null
+      rm -rf ${off_present}_temp
+
+      if (-e $running_flag) then
+      #if (1) then
+        # Collect database and remove if duplicated seat and duplicated username
+        set temp_db = ${database}_temp
+        
+        ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | \
+            awk -F"[_]" '{ if ($3 == "") $3 = "WON" ; if ($4 == "") $4 = "Desk" ; print $2"_"$1"_"$3"_"$4}' | sort -nk1 >! $temp_db
+
+        # Validation WON only
+        set cur = `date '+%H%M'`
+        if (`echo "$cur > 0615" | bc` == 1) then
+          foreach tfile (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep -i "_WON_Desk"`)
+            set md5 = `valid $tfile`
+            if (`grep -w $md5 ${touch_dir}/${tfile} | wc -l` != 1) then
+              echo "`date` $tfile is not validated! Removing threat..." >> ${log}
+              #echo "${touch_dir}/${tfile}"
+              cp -rf ${touch_dir}/${tfile} ${usr_log}
+              rm -rf ${touch_dir}/${tfile}
+              set name = `echo "$tfile" | awk -F"[_]" '{ if ($3 == "") $3 = "WON" ; if ($4 == "") $4 = "Desk" ; print $2"_"$1"_"$3"_"$4}'`
+              sed -i '/'$name'/d' $temp_db
+            else
+              #echo "Found! $tfile $md5"
+            endif
+          end
+        else
+          echo "Not checking validation before working time!"
+        endif
+
+        cat $temp_db | cut -d "_" -f1 | sort | uniq -d >>! ${database}_dup  # Remove dupliacted field 1 (seat)
+        cat $released_seat  >>! $temp_db
+        cat $off_present    >>! $temp_db
+        cat $temp_db | cut -d "_" -f2 | sort | uniq -d >>! ${database}_dup  # Remove duplicated field 2 (usr name)
+        foreach duplicate_seat ("`cat ${database}_dup`")
+          sed -i '/^'$duplicate_seat'_/d' $temp_db
+        end
+        cat $fwi_list_present >>! $temp_db  # Add FWI information
+
+        # Update for last person flag
+        set total_WON = `grep "_WON" $temp_db | wc -l`
+        if ("$total_WON" >= 2) then
+          set last_person1 = `rand 1 $total_WON`
+          set last_person2 = `rand 1 $total_WON`
+          while ("$last_person1" == "$last_person2")
+            sleep 1s
+            set last_person2 = `rand 1 $total_WON`
+          end
+          #echo "Last 2 persons: $last_person1 $last_person2"
+          set line_old = "`grep '_WON' $temp_db | sed '${last_person1}q;d'`"
+          sed -i 's/'$line_old'/'$line_old'_LP1/' $temp_db
+          set line_old = "`grep '_WON' $temp_db | sed '${last_person2}q;d'`"
+          sed -i 's/'$line_old'/'$line_old'_LP2/' $temp_db
+        else if ("$total_WON" == 1) then
+          set line_old = "`grep '_WON' $temp_db`"
+          sed -i 's/'$line_old'/'$line_old'_LP1/' $temp_db
+        else
+          echo "Total members must be greater than 1!"
+        endif
+
+        # Update habit database
+        foreach usr_hb (`ls -1 $habit_db/collect | egrep '^habit_' | egrep -v '_temp$'`)
+          set habit_usr_db = $habit_db/$usr_hb
+          set habit_usr_collect = $habit_db/collect/$usr_hb
+
+          if (! -e $habit_usr_db) then
+            printf "WON\tWOF\n" >! ${habit_usr_db}_temp
+            cat $habit_usr_collect | grep -v "WON" >> ${habit_usr_db}_temp
+            mv -f ${habit_usr_db}_temp $habit_usr_db
+          else 
+          #else if (`diff -y $habit_usr_db $habit_usr_collect | grep "|\|>" | grep -v "WON" | wc -l` != 0) then  # Only new data in collect will be updated! Messy collect will cause always update!!!
+            #echo "$usr_hb"
+            sort -u $habit_usr_collect $habit_usr_db | grep -v "WON" >! ${habit_usr_collect}_temp
+            printf "WON\tWOF\n" >! ${habit_usr_db}_temp
+            cat ${habit_usr_collect}_temp >> ${habit_usr_db}_temp
+            rm -rf ${habit_usr_collect}_temp
+            
+            rm -rf $habit_usr_db
+            mv -f ${habit_usr_db}_temp $habit_usr_db
+          endif
+
+          chmod 755 $habit_usr_db
+        end
+
+
+        unix2dos $temp_db
+        rm -rf $database
+        mv -f $temp_db $database
+        chmod 755 $database
+        rm -rf ${database}_dup $temp_db
+
+        rm -rf $running_flag
+
+        echo "System has been updated successfully!"
+      else
+        echo "Members' location is latest! "
+      endif
+
+    else
+      echo "You do not have permission to do this. Please contact $admin !"
+    endif
+
+  ##################################################
+  else if ("$1" == "release") then  # RELEASE LOCATION
+
+    # Checking robotic actions
+    if (-e $user_habit_db) then
+      tail -30 $user_habit_db >! ${user_habit}_temp
+      set robot = `robot_check 0 $current_time ${user_habit}_temp`
+      if (`echo "$robot" | grep "NG" | wc -l` == 1) then
+        set cap = "`captcha`"
+        echo "Please enter the following 4 characters to verify you're human: $cap"
+        
+        set chk = `bash -c "input="NULL"; read -t15 input ; echo "'$input'""`
+        if ("$chk" == "$cap") then
+          echo "System is executing... Please wait a moment..."
+        else
+          echo "Failed! Please execute again!"
+          echo "$usr_name - Failed Captcha - `date`" >> ${log}
+          exit
+        endif
+      else
+        #echo "You're human already! :D"
+      endif
+      rm -rf ${user_habit}_temp
+    endif
+
+    set has_prev_seat = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l`
+    if ($has_prev_seat != 0) then
+      #set current_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | sed 's/^[^_]*_\([0-9]*\).*$/\1/'`
+      rm -rf ${touch_dir}/${usr_name}_*
+      if (`grep "_${usr_name}_" $released_seat | wc -l` != 0) then
+        sed -i '/^XXX_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+        #sed -i '/^[0-9]*_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+        chmod 777 $released_seat
+      endif
+      printf "XXX_${usr_name}_WOF_`date '+%H:%M'`\n" >> $released_seat
+      #printf "${current_seat}_${usr_name}_`date '+%H:%M'`\n" >> $released_seat
+      printf "\t$timestamp\n" >> $user_habit
+      #chmod 777 $user_habit
+      echo "Your seat has been released successfully! Bye bye..."
+      if (! -e $running_flag) then
+        touch $running_flag
+        chmod 777 $running_flag
+      endif
+    else
+      echo "Sorry. You did not register any seat to release! Bye bye..."
+    endif
+  
+  ##################################################
+  else if ( ("$1" != "book") && ("$1" != "unbook") ) then  # REGISTER SEAT
+    
+    # Checking robotic actions
+    if (-e $user_habit_db) then
+      tail -30 $user_habit_db >! ${user_habit}_temp
+      set robot = `robot_check 1 $current_time ${user_habit}_temp`
+      if (`echo "$robot" | grep "NG" | wc -l` == 1) then
+        set cap = "`captcha`"
+        echo "Please enter the following 4 characters to verify you're human: $cap"
+        
+        set chk = `bash -c "input="NULL"; read -t15 input ; echo "'$input'""`
+        if ("$chk" == "$cap") then
+          echo "System is executing... Please wait a moment..."
+        else
+          echo "Failed! Please execute again!"
+          echo "$usr_name - Failed Captcha - `date`" >> ${log}
+          exit
+        endif
+      else
+        #echo "You're human already! :D"
+      endif
+      rm -rf ${user_habit}_temp
+    endif
+
+
+    set seat = "$1"
+    set correct_in = 0
+    
+    # USERs exit script if NO DATABASE FOUND
+    if ( (! -f $database) || (! -d $touch_dir) ) then
+      echo "ERROR! System is not ready. Please try again later!"
+      exit
+    endif
+     
+    # CHEKING INPUT PROCEDURE
+    while ($correct_in == 0)
+  
+      ### 1: Check if seat is number
+      if (`echo "$seat" | egrep '^[0-9]*$' | wc -l` != 1) then
+        echo "Your choosen seat is not number. Please choose your seat number again. "
+        goto END_CHECK
+      endif
+  
+      ### 2: Check if seat is within $seat_from and $seat_to
+      if (`echo "$seat" | egrep '^0*$' | wc -l` == 1) then
+        set seat = 0
+      else
+        set seat = `echo "$seat" | sed 's/^0*//g'`
+      endif
+      set lower_cond = `echo "($seat - $seat_from) >= 0" | bc`
+      set upper_cond = `echo "($seat_to - $seat) >= 0"   | bc`
+      if ( ($lower_cond != 1) || ($upper_cond != 1) ) then
+        echo "Your seat must be greater than $seat_from and smaller than $seat_to. Please choose your seat number again. "
+        goto END_CHECK
+      endif
+  
+      # PADDING 0 TO THE LEFT
+      set total_char = `echo "$seat" | sed 's/\(.\)/\n\1/g' | wc -l`
+      @ total_char--
+      while ($total_char != $req_length)
+        set seat = `echo "$seat" | sed 's/^/0/'`
+        @ total_char++
+      end
+      #echo "Register: $seat $usr_name"
+  
+      ### 3: Check if seat is busy
+      set has_prev_seat = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l`
+      if ($has_prev_seat == 1) then
+        set current_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | sed 's/^[^_]*_\([0-9]*\).*$/\1/'`
+      else
+        set current_seat  = ""
+      endif
+      #echo "Current_seat = $current_seat => $seat"
+  
+      set seat_busy = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "_${seat}" | wc -l`
+      if ($seat_busy != 0) then
+        set seat_is_reserved = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "${usr_name}_${seat}_RES" | wc -l`
+        if ($seat_is_reserved == 1) then
+          @ seat_busy = 0
+        endif
+      endif
+
+      if ($seat_busy != 0) then # Busy. Not empty
+        set taken_by  = `ls -1l ${touch_dir} | egrep -vw '^total' | grep "_${seat}" |  awk '{print $3}'`
+        set taken_for = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "_${seat}" | sed 's/^\([^_]*\)_.*$/\1/'`
+        echo "Seat ${seat} is taken for $taken_for by $taken_by . Do you want to exchange? (Y/N) "
+        set answer = "$<"
+        # Exchange seat
+        if (("$answer" == "y") || ($answer == 'Y')) then
+          if ("$current_seat" == "$seat") then
+            echo "You've already taken seat $seat !"
+            exit
+          else
+            # Move current seat to exchangeable if user have registered seat before
+            if ($has_prev_seat == 1) then
+              touch ${exchange_dir}/${current_seat}
+              chmod 777 ${exchange_dir}/${current_seat}
+            endif
+            set wait_sec = 10       # Wait 10 seconds. 2 conditions to pass: seat is no longer busy or seat is exchangeable
+            set exchange_ok = 0
+            echo "Please ask your partner to exchange seat ..."
+            while ($wait_sec != 0)
+              printf "\rExchanging ... ${wait_sec}s "
+              @ wait_sec--
+              sleep 1s
+              set seat_busy     = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "_${seat}" | wc -l`
+              set exchangeable  = `ls -1l ${exchange_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$seat'$' | wc -l`
+              #echo "seat_busy: $seat_busy exchangeable: $exchangeable"
+              if ( ($seat_busy == 0) || ($exchangeable == 1) ) then
+                if ($has_prev_seat == 1) then
+                  rm -rf  ${touch_dir}/${usr_name}_${current_seat}  # Remove old seat if existed
+                endif
+                touch ${touch_dir}/${usr_name}_${seat}_WON_Desk            # Touch new seat
+                chmod 777 ${touch_dir}/${usr_name}_${seat}_WON_Desk
+                @ exchange_ok = 1
+                @ wait_sec = 0
+              endif
+            end
+            if ($has_prev_seat == 1) then
+              rm -rf ${exchange_dir}/${current_seat}
+            endif
+            if ($exchange_ok == 0) then
+              echo " -> FAILED! "
+              echo "Please choose another seat. "
+              goto END_CHECK
+            else
+              echo " -> DONE"
+            endif
+          endif
+        else
+          echo "Please choose another seat. "
+          goto END_CHECK
+        endif
+      else
+        if (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l` != 0) then  # Remove old seat or reserved seat
+          rm -rf ${touch_dir}/${usr_name}_*
+          if (`ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'$usr_name'_' | wc -l` != 0) then # Check old seat is removed
+            echo "ERROR! Please contact > $admin < to remove ${usr_name}_* then execute again!"
+            echo "`date +%d%b%Y_%H%M%S` ${usr_name} : ERROR_000! Please remove ${touch_dir}/${usr_name}_*" >> $log
+            exit
+          endif
+        endif
+        touch ${touch_dir}/${usr_name}_${seat}_WON_Desk  # Register new seat ASAP
+        chmod 777 ${touch_dir}/${usr_name}_${seat}_WON_Desk
+      endif
+      
+  
+      # Re-input seat number
+      set correct_in = 1
+      END_CHECK:
+      if ($correct_in == 0) then
+        exit # User must input again
+        set seat = "$<"
+        if ("$seat" == "") then
+          echo "Please input seat number: "
+          goto END_CHECK
+        endif
+      endif
+    end
+
+    # Remove user in released seat
+    if (`grep "_${usr_name}_" $released_seat | wc -l` != 0) then
+      sed -i '/^XXX_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+      #sed -i '/^[0-9]*_'${usr_name}'_/d' $released_seat # Remove name in released seat if any
+      chmod 777 $released_seat
+    endif
+  
+    # Remove user in off_present
+    if (`egrep '^XXX_'${usr_name}'_.*OFF$' $off_present | wc -l` != 0) then
+      sed -i '/^XXX_'${usr_name}'_.*OFF/d' $off_present # Remove name in off present if any
+      chmod 777 $off_present
+    endif
+  
+    # Remove FWI information if any
+    if (`grep "_${usr_name}_" $fwi_list_present | wc -l` != 0) then
+      sed -i '/^XXX_'${usr_name}'_/d' $fwi_list_present # Remove FWI information
+      chmod 777 $fwi_list_present
+    endif
+
+    printf "$timestamp\t\n" >> $user_habit
+    #chmod 777 $user_habit
+    echo "You have successfully register seat $seat !"
+    if (! -e $running_flag) then
+      touch $running_flag
+      chmod 777 $running_flag
+    endif
+  
+  else
+    echo "Syntax Error!"
+    exit
+  endif
+
+else if ($#argv == 3) then
+
+  ##################################################
+  if ("$1" == "book") then  # RESERVE LOCATION
+    if ($reserved_right == 1) then
+      set seat          = "$2" 
+      set usr_resv      = "$3"
+      set usr_resv      = `echo "$usr_resv" | awk '{print tolower($0)}'`  # Convert all to lower case
+      set usr_not_found = `id "$usr_resv" |& egrep '^id:[^:]*: No such user$' | wc -l`
+      if ($usr_not_found == 1) then
+        echo "User account > ${usr_resv} < is not found! Please try again!"
+        exit
+      else
+        ### 1: Check if seat is number
+        if (`echo "$seat" | egrep '^[0-9]*$' | wc -l` != 1) then
+          echo "Your choosen seat is not number. Please try again!"
+          exit
+        endif
+  
+        ### 2: Check if seat is within $seat_from and $seat_to
+        if (`echo "$seat" | egrep '^0*$' | wc -l` == 1) then
+          set seat = 0
+        else
+          set seat = `echo "$seat" | sed 's/^0*//g'`
+        endif
+        set lower_cond = `echo "($seat - $seat_from) >= 0" | bc`
+        set upper_cond = `echo "($seat_to - $seat) >= 0"   | bc`
+        if ( ($lower_cond != 1) || ($upper_cond != 1) ) then
+          echo "Your seat must be greater than $seat_from and smaller than $seat_to. Please try again!"
+          exit
+        endif
+  
+        # PADDING 0 TO THE LEFT
+        set total_char = `echo "$seat" | sed 's/\(.\)/\n\1/g' | wc -l`
+        @ total_char--
+        while ($total_char != $req_length)
+          set seat = `echo "$seat" | sed 's/^/0/'`
+          @ total_char++
+        end
+        #echo "Register: $seat $usr_resv"
+  
+        ### 3: Check if seat is busy
+        set seat_busy     = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "_${seat}" | wc -l`
+        set usr_has_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'${usr_resv}'_' | wc -l`
+        #set usr_offline   = `grep "_${usr_resv}_" $released_seat | wc -l` # No need to check, allow to reserve seat when people is out!
+        if ($seat_busy != 0) then # Busy. Not empty
+          set taken_by  = `ls -1l ${touch_dir} | egrep -vw '^total' | grep "_${seat}" |  awk '{print $3}'`
+          set taken_for = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | grep "_${seat}" | sed 's/^\([^_]*\)_.*$/\1/'`
+          echo "Seat ${seat} is taken for $taken_for by $taken_by . Please choose another seat or request $taken_by to move then try again! "
+          exit
+        else if ($usr_has_seat != 0) then
+          set usr_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'${usr_resv}'_' | sed 's/^[^_]*_\([0-9]*\).*$/\1/'`
+          echo "${usr_resv} has already had seat ${usr_seat} ! You cannot reserve seat for him/her!"
+          exit
+#        else if ($usr_offline == 1) then
+#          echo "${usr_resv} is "
+        else
+          touch ${touch_dir}/${usr_resv}_${seat}_RES  # Register new seat ASAP
+          chmod 777 ${touch_dir}/${usr_resv}_${seat}_RES
+          echo "Seat ${seat} has been reserved for ${usr_resv} until 10:00AM!"
+          if (`grep "_${usr_name}_" $released_seat | wc -l` != 0) then
+            sed -i '/^XXX_'${usr_resv}'_/d' $released_seat # Remove name in released seat if any
+            chmod 777 $released_seat
+          endif
+          if (! -e $running_flag) then
+            touch $running_flag
+            chmod 777 $running_flag
+          endif
+        endif
+      endif
+    else
+      echo "You do not have permission to do this. Please contact $admin !"
+    endif
+  else
+    echo "Syntax Error!"
+    exit
+  endif
+
+else if ($#argv == 2) then
+
+  ##################################################
+  if ("$1" == "unbook") then  # RESERVE LOCATION
+    if ($reserved_right == 1) then
+      set usr_resv      = "$2"
+      set usr_resv      = `echo "$usr_resv" | awk '{print tolower($0)}'`  # Convert all to lower case
+      set usr_not_found = `id "$usr_resv" |& egrep '^id:[^:]*: No such user$' | wc -l`
+      if ($usr_not_found == 1) then
+        echo "User account > ${usr_resv} < is not found! Please try again!"
+        exit
+      else
+        ### Check if user has reserved seat
+        set usr_has_resv_seat  = `ls -1l ${touch_dir} | egrep -vw '^total' | awk '{print $NF}' | egrep '^'${usr_resv}'_.*_RES$' | wc -l`
+        if ($usr_has_resv_seat != 0) then
+          rm -rf ${touch_dir}/${usr_resv}_*_RES
+          echo "Reserved seat for $usr_resv is cleared successfully! "
+          if (! -e $running_flag) then
+            touch $running_flag
+            chmod 777 $running_flag
+          endif
+          exit
+        else
+          echo "Sorry! User > $usr_resv < doesn't have any reserved seat!"
+          exit
+        endif
+      endif
+    else
+      echo "You do not have permission to do this. Please contact $admin !"
+    endif
+    
+  else
+    echo "Syntax Error!"
+    exit
+  endif
+
+else
+  echo "Syntax Error!"
+  exit
+endif
+cd $this_dir
+
+
+###### ADMIN set CRONTAB ######
+
+if ($admin_right == 1) then
+  # Clear old seat at 6AM
+  set cron_command  = "0 6 * * * /shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh clear"
+  set old_cr        = "`crontab -l | grep -w '/shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh clear' | tr -d ' '`"
+  set new_cr = `echo "$cron_command" | tr -d ' ' `
+  if ("$old_cr" != "$new_cr") then
+    cd $usr_log
+      crontab -l | grep -vw '/shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh clear' >! $cron_file
+      printf "${cron_command}\n" >>! $cron_file
+      crontab $cron_file
+      echo "Crontab is installed to clear all seat before working time!"
+    cd $this_dir
+  endif
+
+  # Update database every 1 minutes in working day
+  set cron_command  = "*/2 * * * 1-5 /shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh update"
+  set old_cr        = "`crontab -l | grep -w '/shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh update' | tr -d ' '`"
+  set new_cr = `echo "$cron_command" | tr -d ' ' `
+  if ("$old_cr" != "$new_cr") then
+    cd $usr_log
+      crontab -l | grep -vw '/shsv/CIS/User/tuanla/01_common_script/seat_locate/seat.csh update' >! $cron_file
+      printf "${cron_command}\n" >>! $cron_file
+      crontab $cron_file
+      echo "Crontab is installed to update location database every 5mins in working time!"
+    cd $this_dir
+  endif
+endif
+
+###############################

@@ -1,0 +1,44 @@
+#!/bin/csh -f
+##########################################################################################
+######### preparing Server for run DRC ###################################################
+
+#Thanks Hoang Trinh for useful command
+#Modified by Phuong Nguyen - 14/05/2013
+#1. remove closed server, UBUNTU server, REDHATE4 server, unavailable server
+#2. remove blank line in GR_MENTOR.lst
+#3. remove *.lst file before running new progress
+    #rm -rf *.lst 
+    #bhosts     | grep rvc-srv   | grep ok        >! bs.lst
+    lshosts -w | grep rvc-srv    >! ls.lst
+    lshosts -w >! ls_header
+    bmgroup -w | grep GR_MENTOR | sed "s/ /\n/g" | sort -du   | sed -n '/^$/! p'  >! GR_MENTOR.lst
+    lsload  -E | sort -d        | grep rvc-srv   | grep ok    >! load.lst
+    lsload  -E >! lsload_header
+
+#Find the Mentor Host for running DRC
+#    foreach s (`cat GR_MENTOR.lst `)
+#        grep $s load.lst >> good_server.lst 
+#    end 
+############################################
+
+#Find server whci has cpuf = 310.0
+
+    awk '{print "grep",$1,"load.lst"|"sh"}' ls.lst >! server_info.lst
+    sort +5 -0n server_info.lst >! good_server.lst
+    #echo $RUN_SERVER
+    #rm -rf *.lst 
+    awk '{if(NR==1)print;if($4==310.0)print}' ls_header | sort -n >! tmp1
+    awk '{if(NR==1)print;if($2 == "ok" && $1 ~ "rvc-srv")print}' lsload_header | sort -n >! tmp2
+    awk '{print "grep",$1,"tmp2"|"csh"}' tmp1 >! tmp3
+    awk '{print "grep",$1,"tmp1"|"csh"}' tmp2 >! tmp4
+    paste tmp3 tmp4  >! tmp5
+    vi -c 'g/HOST_NAME/1,.-1d' -c wq tmp5
+    gawk  'BEGIN{OFS="\t"} {$13 = "";print $0}' tmp5|sed 's/\tRED/  RED/g' >! tmp6
+
+    sort +5 -0n tmp6 >! good_server.lst
+
+    rm -f tmp*
+
+cat good_server.lst | sort
+
+############################# END OF FILE ##################################################

@@ -1,0 +1,10 @@
+#set_pg_via_master_rule via89 -contact_code VIA89_1cut -cut_spacing {0.66 0.66}
+#create_pg_vias -nets {LVDVCC AWOVDD ISOVDD A0VCC A1VCC A2VCC VCC SYSVCC E0VCC E1VCC E2VCC GETH0BVCC GETH0PVCC A0VSS A1VSS  A2VSS VSS} 
+create_pg_vias -nets {ISOVDD AWOVDD  VSS SGPLLVDD HOCOVDD LVDVCC VCC SYSVCC A0VCC A0VSS A1VSS A1VCC A2VCC A2VSS E0VCC E1VCC E2VCC GETH0BVCC GETH0BVSS GETH0PVSS GETH0PVCC GETH0RVCC} \
+               -within_bbox [get_attribute [current_block] boundary] \
+               -from_types stripe \
+               -to_types stripe \
+               -from_layers AP \
+               -to_layers M9 \
+               -mark_as stripe
+
