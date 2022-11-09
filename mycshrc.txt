@@ -1,0 +1,208 @@
+#! /bin/sh -f
+setenv LSF_PROJECT SV
+source /common/lsftool/RBS/dotfiles/lsf_cshrc_cbs
+set history = 1000
+
+#set path =($path /shsv/Backend/IP_RcarH3/Common/Scripts_Binh)
+# set dsv = ( `grep -e "haulamhuynh" /common/lsftool/RBS/attrib/SP_HOSTS_DIR/* | awk -F '/|:' '{print $(NF-1)}' | sort -u` )
+set desv = `grep -e "haulamhuynh" /common/lsftool/RBS/attrib/SP_HOSTS_DIR/* | awk -F '/|:' '{print $(NF-1)}' | sort -u `
+alias err 'grep -ilr error *'
+alias slow $1 'ps -ao pid,user,ruser,group,%cpu,%mem,vsz,rss,sz,lstart,bsdstart,bsdtime,tty,stat,args,uname --sort uname -x | grep -v root | grep  $1'
+alias dedi 'echo $desv'
+alias path '~/HLH_script/linhtinh/unix2wd_v5.pl'
+alias shift $1 $2 $3 $4 '~/HLH_script/drc_report/shiftascii.pl $1 $2 $3 $4'
+alias jobsv $1 'sjobs -u all -l -m $1'
+alias jobw $1 '~/script/job_on_server.csh $1'
+alias jobu $1 '~/script/job_on_server.py  $1'
+#alias sv $1 ' /home/u/haulamhuynh/check_server.csh '
+alias swp "find . -type f | egrep .swp | xargs rm -rf"
+alias common  'cd /common/work/haulamhuynh/'
+alias merge  '~/script/linhtinh/get_merge_log_file.py'
+alias rep  '~/script/linhtinh/get_rep_file.py'
+alias cleanrc 'rm -rf *dspf *lis *st0 *hsp net* repo.cap *.log repo.capres .__FINISH*'
+alias groupsv 'bmgroup -w'
+alias mem 'memreport -u all | grep haulamhuynh'
+alias pgtool 'echo "/shsv/BackendIO/99_Physical/3_Common/33_Scripts/332_PG_EM_IRDROP/pg_tool_box.tcl"'
+alias change_type $1 '/shsv/PnR/U2A16/4.DESIGN/DN1/00_TOP/4.PV/z_users/hauhuynh/03_PG_MASTER/scripts/routing/change_typev7.pl '
+#alias last ' ~/script/vim_last_file.csh'
+set date = `date +"%A-%d/%m/20%y "`
+#set check_empty $1 `cat $1 | grep ROM | awk '{print $2}' | xargs file`
+alias isempty $1 'file $1'
+alias hacksv $1 '~/check_server_RVC.csh $1'
+# +--------------------------------------------------------------------------------+
+# |------------------------------Short keyboard------------------------------------|
+# +--------------------------------------------------------------------------------+
+### tu dong show danh sach file trong folder
+set autolist
+### tu dong viet hoa khi co file chu HOA
+set complete=enhance
+alias foxit "/common/appl/Foxit-Reader//FoxitReader"
+alias multi_window "/common/appl/terminator/0.14/terminator"
+
+set my_ip=`/sbin/ifconfig | awk '/inet\ addr\:/ {print}' | awk '/Bcast\:/ {print}' | sed 's/:/ /g' | awk '{print $3}'`
+alias ip 'echo $my_ip'
+alias env 'setenv DISPLAY rvc_eod02.rvc.renesas.com:84'
+#set prompt = "%{\033[0;35m%}%{\033[0;33m%}%/%{\033[0;31m%} :\n%{\033[50m%}%{\033[32m%}%m %{\033[35m%}%c ¯_(ツ)_/¯  %{\033[0;0m%}: "
+set prompt = "%{\033[0;35m%}%{\033[0;33m%}%/%{\033[0;31m%} :\n%{\033[50m%}%{\033[32m%}%m %{\033[35m%}%c ¯_(ツ)_/¯  %{\033[0;0m%}: "
+alias v 'vi'
+alias rl $1 'readlink -f $1'
+alias rt $1 '~/script/linhtinh/readtext.csh $1'
+alias btc $1 '~/.coin.csh $1'
+#alias up $1 '~/up.csh; cd "$p"'
+alias cd $1 'cd $1\
+             ll'
+#===========Tool DESIGN LAYOUT =================
+#alias ICC1 'source /common/appl/Env/Synopsys/icc_vI-2013.12-SP5-2;bs -os "SLES10_0 REDHATE5_0" -M 64000  icc_shell'
+alias ICC1      'source /common/appl/Env/Synopsys/icc_vK-2015.06-SP1;bs -os "SLES10_0 REDHATE5_0" -M 64000  icc_shell'
+alias ICC2_64 'bs -os "RHEL6" -M 64000 -n 4  -source /common/appl/Env/Synopsys/icc2_vM-2016.12-SP4 icc2_shell -64'
+alias ICC2_96 'bs -os "RHEL5 REDHATE5_0" -M 96000  -n 4 -source /common/appl/Env/Synopsys/icc2_vL-2016.03-SP5-2 icc2_shell -64'
+#alias ICC2 $1 $2 '~/running_icc2.csh'
+#alias ICC2_2016 'source /shsv/Backend7TMP/RcarE3_DIR2/4.DESIGN/00_TOP/4.PV/995_ENV/COMMON_FILE/PV.TOOLVERSION ; bs -n 3 -os RHEL6 -M 64000 -source $CSHRC_ICC2 icc2_shell -64'
+#alias ICC2 $1 'source /shsv/Backend3/D3/PV/PV/PV_ENV/COMMON_FILE/PV.TOOLVERSION;\
+#bs -n 4 -os RHEL6 -M ${MEM_EDI} -source $CSHRC_ICC2 icc2_shell -64'
+alias PT        'bs -os "RHEL5 REDHATE5_0" -M 48000  -source /common/appl/Env/Synopsys/pts_vK-2015.12-SP3 -n 4  pt_shell '
+alias INNO 'bs   -os "REDHATE5_0 RHEL6" -m "$desv"  -M 64000 -n 2  -source /common/appl/Env/Cadence/cadence.CSHRC_INNOVUS16.21.000  innovus -64 '
+
+#alias ICC2 'bs -M 64000 -n 2 -source /common/appl/Env/Synopsys/icc2_vK-2015.06-SP1 icc2_shell'
+
+# Begin
+alias search      'egrep -irn --color'
+alias kdiff       "/common/appl/kdiff3-32bit/bin/kdiff3 &"
+#=========================================================================================
+#=========================Common Option===================================================
+alias dus     'du -csh'
+alias 777      'chmod -R 777'
+alias 775      'chmod -R 775'
+alias 755      'chmod -R 755'
+alias 700      'chmod -R 700'
+alias 644      'chmod -R 644'
+alias l        'clear'
+#alias rm       'rm -rf '
+alias cp       'cp -rf '
+alias sm      'source ~/.mycshrc'
+alias vimrc      'source ~/.vimrc'
+alias sv $1    '~/../hacnguyen/check_server_RVC.csh $1'
+alias tree 'tree -C'
+alias nen 'echo " [tar.bz2]nen 1 file : tar -cjf file.tar.bz2 file \n [tar.bz2]nen 2 file : tar -cjf file.tar.bz2 file1 file2 \n [tar.bz2]giainen: tar -xjf file.tar.bz2 -C destiny_folder \n \n [tar.gz]nen 1 file: tar -cvfz file.tar.gz file \n [tar.gz]giai nen: tar -xvfz file.tar.gz"'
+alias help $1 '~/help.csh'
+alias shot '~/script/linhtinh/screen_shot.csh'
+alias noduplicate   'cat -n  \!^ | sort -uk2 | sort -nk1 | cut -f2-'
+#alias nen 'echo "->" tar xvf file.tar : giai nen \
+#					 echo "->" tar xvfz file.tar.gz : giai nen tar.gz \
+#					 echo "->" tar cvfz file.tar.gz folder : nen thu muc \
+#					 echo "->" tar cvf file.tar file1 file2 : nen 2 file vo 1 file \
+#					 echo "->" gzip file.txt : nen file.txt.gz \
+#					 echo "->" gunzip file.txt.gz : giai nen \
+#					 echo "->" tar -xjf file.tar.bz2 -C dir : giai nen tar.bz2 \
+#           echo "->" tar -xzf file.tgz : giai nen .tgz \
+#           echo "->" tar -cjf file.tar.bz2 file : nen tar.bz2 \
+#           echo "->" ###gtar cvfz folder.tgz compress folder \
+#           echo "->" ###gtar xvfz folder.tgz decompress folder'
+
+#alias giainen 'echo "->" tar xvf file.tar : giai nen \
+#							 echo "->" tar xvfz file.tar.gz : giai nen tar.gz \ 
+#							 echo "->" tar cvfz file.tar.gz folder : nen thu muc'
+#							 echo "->" tar cvf file.tar file1 file2 : nen 2 file vo 1 file \
+#							 echo "->" gzip file.txt : nen file.txt.gz \ 
+#							 echo "->" gunzip file.txt.gz : giai nen \
+#							 echo "->" tar -xjf file.tar.bz2 -C dir : giai nen tar.bz2 \
+#							 echo "->" tar -xzf file.tgz : giai nen .tgz \
+#							 echo "->" tar -cjf file.tar.bz2 file : nen tar.bz2 \
+#							 echo "->" ###gtar cvfz folder.tgz compress folder \
+#							 echo "->" ###gtar xvfz folder.tgz decompress folder'
+
+
+#============================================================================================
+# watch capacity
+# du -csh --> to see home/u/$user
+# du -csh directory --> to see another folder
+# du -csh * --> to see more detail 
+#==============================================================================================
+alias bl      'cd .. | ll'
+alias lg      'll | egrep -i --color'
+alias gg      'grep "" * | grep'
+alias grep    'egrep -i --color'
+alias desk    'cd ~/Desktop'
+alias dict    '/common/appl/stardict/bin/stardict &'
+alias kate    '/usr/bin/kate &'
+alias terminal      '/common/appl/terminator/0.14/terminator -T D5_SECURITY_TEAM & '
+alias link    'ln -sf'
+#alias ll      'll -d'
+#Aliases for LSF server
+alias lsf12     'pwd >! ~/.lsf_dir \
+                    xhost + \
+                    ssh lsf-login12'
+
+################################################################################
+# Open file                                                                    #
+################################################################################
+alias oo        '/common/appl/OO/OO_4.0.1-32bit/program/soffice \!* &'
+alias kon       'konqueror &'
+alias calendar  '/usr/bin/korganizer &'
+alias paint     '/usr/bin/kolourpaint &'
+alias mail      '/common/appl/Thunderbird/6.0/thunderbird &'
+alias ff        '/common/appl/Firefox/15.0/firefox &'
+alias map       '/common/appl/freemind/0.8.1/freemind.sh &' 
+alias firefox  'cp -rf \!^ /home/u/haulamhuynh/aaa;/common/appl/Firefox/15.0/firefox /home/u/haulamhuynh/aaa'
+alias it        '/common/appl/Firefox/15.0/firefox 172.29.139.11/portal25/'
+alias silkportal '/common/appl/Firefox/15.0/firefox 172.29.139.61/'
+alias dms       '/common/appl/Firefox/15.0/firefox 172.29.138.11/dms/browse.php?sess=9e36569bff91790965042a26b6ad4657&parent=1'
+alias thunderbird '/common/appl/Thunderbird/8.0/thunderbird'
+alias dictionary '/common/appl/Firefox/15.0/firefox 172.29.139.11:8080 &'
+alias dictionary2 '/common/appl/stardict/bin/stardict'
+alias mutiwindow "/common/appl/terminator/0.14/terminator &"
+alias ksn 'ksnapshot &'
+alias lic  '/home/u/huyquoctran/.HQTScripts/chk_lic_v1.6.csh ICCompilerII-4'
+alias pdf     '/common/appl/Foxit-Reader/FoxitReader \!* & '
+################################################################################
+# Link Folder                                                                  #
+################################################################################
+alias common 'cd /common/work/haulamhuynh'
+#alias quickview 'bs -os "REDHATE5_0 RHEL6" -n 2 -M 16000 -bm 51A -sn A04237 -source /common/appl/Env/Cadence/cadence.CSHRC_EXT15.23.000 quview'
+alias qve3 'bs -os RHEL5 -n 4 -M 64000 -bm 51A -sn A04237 -source /common/appl/Env/Cadence/cadence.CSHRC_PVS15.23.000  k2_viewer&'
+alias qv 'bs -os "RHEL5" -n 2 -M 16000 -bm 51A -sn A04237 -source /common/appl/Env/Cadence/cadence.CSHRC_PVE11.11.155 k2_viewer&'
+#alias d3user 'cd /shsv/Backend3/D3/z.users/hauhuynh/'
+#alias d3_design 	'cd /shsv/Backend3/D3/TOP/Design/LAY'
+alias io  'cd /shsv/BackendIO/99_Physical/4_Users/hauhuynh'
+alias D3 'cd /shsv/Backend3/D3/PV/z.users/hauhuynh/'
+alias e3 'cd /shsv/Backend7TMP/RcarE3_DIR2/4.DESIGN/00_TOP/4.PV/z_users/haulamhuynh'
+alias e3env 'cd /shsv/Backend7TMP/RcarE3_DIR2/4.DESIGN/00_TOP/4.PV/995_ENV/'
+alias M3N 'cd /shsv/PnR/RCARM3N/4.DESIGN/PV/5_USERS/hauhuynnh/'
+alias eva 'cd /shsv/PnR/P2F2_EVA/4.DESIGN/TRIAL/WORK_HAULAMHUYNH'
+alias U16 'cd /shsv/PnR/U2A16/4.DESIGN/DN1/00_TOP/4.PV/z_users/hauhuynh/'
+alias M3NBK 'cd /shsv/PnR/RCARM3NES1.1/4.DESIGN/CN_ES1.1/TOP/4.PV/001C_M3N_ES1P1_PVS_ENV_STA1C_171012/M3NES1.1_PR2_TO_PV'
+alias V3H 'cd /shsv/Backend9/RcarV3H/4.DESIGN/PV/haulamhuynh/'
+alias pv 'cd /shsv/Backend3/D3/PV/PV/PV_ENV/PV_IP_ENV/'
+alias gui 'bjobs -u all | grep -i GUI | egrep "login01|login09" '
+alias exit_gui '~/HLH_script/terminate_jobs/terminate_jobs.csh'
+alias get_ip_data $1 '~/get_ipdata.csh $1'
+#Spool: 1. ssh 172.29.138.144 -> login 2. cd <data_path> 3. spool . <package>
+alias spool  '/common/appl/ncftp-3.2.5/bin/ncftpput -u rvc_tran -p tran2rvc mftpsv01.eda.renesas.com'
+#Webtrans: webtrans [get][put][help] <Data>
+alias webtrans '/home/u/huyquoctran/.HQTScripts/beFTP.csh'
+
+################################################################################
+# Fix Set Mouse: can not coppy while set mouse                                 #
+################################################################################
+if (`hostname` =~ *ws*) then
+  alias       vi /common/appl/VIM72-32bit/bin/vim
+  alias       vd /common/appl/VIM72-32bit/bin/vimdiff
+  alias       bsvi bs /common/appl/VIM72-32bit/bin/vim
+  alias       bsvimdiff bs /common/appl/VIM72-32bit/bin/vimdiff
+else if ((`hostname` =~ *lsf*) || (`hostname` =~ *srv*)) then
+  alias       vi /usr/bin/vim
+  alias       vd /common/appl/VIM72-64bit/bin/vimdiff
+  alias       bsvi bs /common/appl/VIM72-64bit/bin/vim
+  alias       bsvimdiff bs /common/appl/VIM72-64bit/bin/vimdiff
+else
+  alias       vi /usr/bin/vim
+  alias       vd /common/appl/VIM72-32bit/bin/vimdiff
+  alias       bsvi bs /common/appl/VIM72-32bit/bin/vim
+  alias       bsvimdiff bs /common/appl/VIM72-32bit/bin/vimdiff
+# do nothing
+endif
+
+
+# Online Destination Board
+source /home/Common/Meeting/Eng_General/Online_Destination_Board/3F/user/alias.seat
+
